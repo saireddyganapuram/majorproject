@@ -17,4 +17,5 @@ class TextModerationResponse(BaseModel):
     severity: str = Field(..., description="none, low, medium, or high")
     categories: List[str] = Field(default_factory=list, description="Violated categories")
     toxicity_score: float = Field(..., ge=0.0, le=1.0, description="Calculated toxicity index")
+    confidence: Optional[float] = Field(0.9, description="Model prediction confidence")
     clean_text: str = Field(..., description="Sanitized text with masked terms")

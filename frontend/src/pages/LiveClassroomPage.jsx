@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import faceTracker from '../services/faceTracker';
 import {
   Mic,
   MicOff,
@@ -181,55 +182,74 @@ export default function LiveClassroomPage() {
     };
   }, [sessionId, user]);
 
-  // 4. Simulated AI Engagement Telemetry Loop
+  // 4. Real Local Computer Vision Engagement Telemetry Loop
   useEffect(() => {
-    if (!consentGranted) return;
+    if (!consentGranted || !videoEnabled) {
+      if (!consentGranted) {
+        setPersonalState('consent_revoked');
+        setPersonalFocusScore(null);
+      } else if (!videoEnabled) {
+        setPersonalState('camera_off');
+        setPersonalFocusScore(null);
+      }
+      return;
+    }
 
     const interval = setInterval(async () => {
-      // Compute realistic local score fluctuations
-      const baseVariation = Math.floor(Math.random() * 9) - 4; // -4 to +4
-      const newScore = Math.min(98, Math.max(50, personalFocusScore + baseVariation));
-      setPersonalFocusScore(newScore);
+      if (!localVideoRef.current || !videoEnabled) return;
 
-      let newState = 'attentive';
-      if (newScore < 60) {
-        newState = 'distracted';
-        setDistractionAlert('Attention drift detected. Refocusing recommended.');
-        setTimeout(() => setDistractionAlert(null), 4000);
-      } else if (newScore < 75) {
-        newState = 'neutral';
-      }
-      setPersonalState(newState);
+      try {
+        const result = await faceTracker.analyzeFrame(localVideoRef.current);
 
-      // Emit telemetry to socket and backend if student
-      if (!isInstructor && socketRef.current) {
-        socketRef.current.emit('live_engagement_metric', {
-          sessionId,
-          metric: {
-            studentId: user?._id,
-            score: newScore,
-            state: newState,
-          },
-        });
+        if (result.faceDetected && result.overallScore !== null) {
+          setPersonalFocusScore(result.overallScore);
+          setPersonalState(result.facialState);
 
-        // Record periodically in backend
-        try {
-          await api.post('/analytics/engagement', {
-            sessionId,
-            overallScore: newScore,
-            facialState: newState,
-            attentionScore: newScore,
-            headPoseState: newState === 'distracted' ? 'looking_away' : 'facing_camera',
-            distractionFlag: newState === 'distracted',
-          });
-        } catch {
-          // Ignore periodic telemetry drop
+          if (result.distractionFlag) {
+            setDistractionAlert('Attention drift detected (gaze orientation). Refocusing recommended.');
+            setTimeout(() => setDistractionAlert(null), 4000);
+          }
+
+          // Emit real-time telemetry to socket and backend if student
+          if (!isInstructor && socketRef.current) {
+            socketRef.current.emit('live_engagement_metric', {
+              sessionId,
+              metric: {
+                studentId: user?._id,
+                score: result.overallScore,
+                state: result.facialState,
+                headPose: result.headPose,
+              },
+            });
+
+            // Record periodically in backend database
+            try {
+              await api.post('/analytics/engagement', {
+                sessionId,
+                overallScore: result.overallScore,
+                facialState: result.facialState,
+                attentionScore: result.overallScore,
+                headPoseState: result.headPoseState,
+                eyeGazeScore: result.eyeGazeScore,
+                distractionFlag: result.distractionFlag,
+                notes: result.notes,
+              });
+            } catch {
+              // Ignore periodic network drop
+            }
+          }
+        } else {
+          // No face visible or poor lighting — do NOT fabricate a fake score
+          setPersonalFocusScore(null);
+          setPersonalState(result.dataQuality === 'poor_lighting' ? 'poor_lighting' : 'absent');
         }
+      } catch (err) {
+        console.warn('Local frame analysis warning:', err);
       }
-    }, 10000);
+    }, 4000);
 
     return () => clearInterval(interval);
-  }, [consentGranted, personalFocusScore, sessionId, isInstructor, user]);
+  }, [consentGranted, videoEnabled, sessionId, isInstructor, user]);
 
   // Media Controls
   const toggleAudio = () => {
@@ -346,7 +366,9 @@ export default function LiveClassroomPage() {
             <div className="flex items-center gap-2 px-3 py-1 bg-surface-800/80 rounded-lg border border-surface-700">
               <Eye className="w-4 h-4 text-primary-400" />
               <span className="text-xs text-surface-300">My Focus:</span>
-              <span className="text-xs font-bold text-primary-400">{personalFocusScore}%</span>
+              <span className="text-xs font-bold text-primary-400">
+                {personalFocusScore !== null ? `${personalFocusScore}%` : 'Searching Face...'}
+              </span>
             </div>
           )}
 
@@ -417,7 +439,7 @@ export default function LiveClassroomPage() {
               {consentGranted && videoEnabled && (
                 <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md text-[10px] text-emerald-400 border border-emerald-500/30 flex items-center gap-1 font-mono">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                  AI Tracking: {personalState.toUpperCase()} ({personalFocusScore}%)
+                  AI Tracking: {personalState.toUpperCase()} {personalFocusScore !== null ? `(${personalFocusScore}%)` : '(Searching Face)'}
                 </div>
               )}
             </div>

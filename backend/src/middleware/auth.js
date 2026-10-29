@@ -9,7 +9,10 @@ import { AppError } from './errorHandler.js';
  */
 export const authenticate = async (req, res, next) => {
   try {
-    const token = req.cookies?.accessToken;
+    const authHeader = req.headers.authorization;
+    const token =
+      req.cookies?.accessToken ||
+      (authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
 
     if (!token) {
       throw new AppError('Authentication required. Please log in.', 401, 'AUTH_REQUIRED');
@@ -71,7 +74,10 @@ export const authorize = (...roles) => {
  */
 export const optionalAuth = async (req, res, next) => {
   try {
-    const token = req.cookies?.accessToken;
+    const authHeader = req.headers.authorization;
+    const token =
+      req.cookies?.accessToken ||
+      (authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
     if (token) {
       const decoded = verifyAccessToken(token);
       const user = await User.findById(decoded.id).select('-password');

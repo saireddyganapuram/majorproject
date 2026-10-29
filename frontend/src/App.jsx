@@ -19,6 +19,8 @@ import ClassDetailPage from './pages/ClassDetailPage';
 import LiveClassroomPage from './pages/LiveClassroomPage';
 import AnalyticsReportPage from './pages/AnalyticsReportPage';
 import StudentInsightsPage from './pages/StudentInsightsPage';
+import ModerationPage from './pages/ModerationPage';
+import AdminPage from './pages/AdminPage';
 
 /**
  * Dispatcher to route students to self-reflection and instructors to class-wide analytics.
@@ -59,6 +61,11 @@ export default function App() {
             <Route path="/analytics" element={<AnalyticsDispatcher />} />
             <Route path="/analytics/:sessionId" element={<AnalyticsReportPage />} />
             <Route path="/classroom/:sessionId" element={<LiveClassroomPage />} />
+            <Route path="/moderation" element={<ModerationPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin/users" element={<AdminPage />} />
+            <Route path="/admin/security" element={<AdminPage />} />
+            <Route path="/admin/settings" element={<AdminPage />} />
           </Route>
 
           {/* Redirects */}

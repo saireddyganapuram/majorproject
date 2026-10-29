@@ -13,23 +13,30 @@ export const updateConsent = async (req, res, next) => {
       throw new AppError('Session ID is required', 400, 'MISSING_SESSION_ID');
     }
 
+    const isGranted = Boolean(granted);
+    const updateDoc = {
+      consentGiven: isGranted,
+    };
+    if (isGranted) {
+      updateDoc.grantedAt = new Date();
+      updateDoc.$unset = { withdrawnAt: 1 };
+    } else {
+      updateDoc.withdrawnAt = new Date();
+    }
+
     const consent = await ConsentRecord.findOneAndUpdate(
       {
         studentId: req.user._id,
         sessionId,
         analysisType,
       },
-      {
-        granted: Boolean(granted),
-        consentDate: new Date(),
-        ipAddress: req.ip,
-      },
-      { upsert: true, new: true }
+      updateDoc,
+      { upsert: true, new: true, runValidators: true }
     );
 
     res.json({
       success: true,
-      message: granted ? 'Analytics consent granted' : 'Analytics consent revoked',
+      message: isGranted ? 'Analytics consent granted' : 'Analytics consent revoked',
       data: consent,
     });
   } catch (error) {
@@ -91,7 +98,7 @@ export const recordEngagement = async (req, res, next) => {
       analysisType: 'face_landmarks',
     });
 
-    if (!consent || !consent.granted) {
+    if (!consent || !consent.consentGiven) {
       return res.status(200).json({
         success: false,
         message: 'Metrics discarded: Student has not consented to engagement analytics',
@@ -292,6 +299,35 @@ export const getStudentSessionAnalytics = async (req, res, next) => {
         totalSamples: records.length,
         timeline,
         recommendations,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/v1/engagement/students/me/history
+ * Current student's historical engagement across sessions
+ */
+export const getMyEngagementHistory = async (req, res, next) => {
+  try {
+    const studentId = req.user._id;
+    const records = await EngagementRecord.find({ studentId })
+      .populate('sessionId', 'title scheduledStart actualStart status')
+      .sort({ timestamp: -1 })
+      .limit(200);
+
+    const total = records.reduce((sum, r) => sum + r.overallScore, 0);
+    const averageScore = records.length > 0 ? Math.round(total / records.length) : null;
+
+    res.json({
+      success: true,
+      data: {
+        hasData: records.length > 0,
+        averageScore,
+        totalObservations: records.length,
+        records,
       },
     });
   } catch (error) {

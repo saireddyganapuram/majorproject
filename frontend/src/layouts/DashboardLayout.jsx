@@ -8,6 +8,7 @@ import {
   BarChart3,
   Users,
   Shield,
+  ShieldAlert,
   Settings,
   LogOut,
   Menu,
@@ -31,13 +32,14 @@ const navigationByRole = {
     { name: 'My Classes', path: '/classes', icon: BookOpen },
     { name: 'Sessions', path: '/sessions', icon: Calendar },
     { name: 'Analytics', path: '/analytics', icon: BarChart3 },
+    { name: 'Moderation', path: '/moderation', icon: ShieldAlert },
     { name: 'Students', path: '/students', icon: Users },
   ],
   admin: [
-    { name: 'Overview', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Overview', path: '/admin', icon: LayoutDashboard },
     { name: 'Users', path: '/admin/users', icon: Users },
+    { name: 'Moderation', path: '/moderation', icon: ShieldAlert },
     { name: 'Security', path: '/admin/security', icon: Shield },
-    { name: 'Settings', path: '/admin/settings', icon: Settings },
   ],
 };
 

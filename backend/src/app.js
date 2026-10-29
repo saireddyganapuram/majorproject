@@ -13,6 +13,8 @@ import sessionRoutes from './routes/sessions.js';
 import analyticsRoutes from './routes/analytics.js';
 import chatRoutes from './routes/chat.js';
 import reportRoutes from './routes/reports.js';
+import moderationRoutes from './routes/moderation.js';
+import adminRoutes from './routes/admin.js';
 
 /**
  * Create and configure the Express application.
@@ -70,12 +72,20 @@ const createApp = () => {
 
   app.use('/api/analytics', analyticsRoutes);
   app.use('/api/v1/analytics', analyticsRoutes);
+  app.use('/api/engagement', analyticsRoutes);
+  app.use('/api/v1/engagement', analyticsRoutes);
 
   app.use('/api/chat', chatRoutes);
   app.use('/api/v1/chat', chatRoutes);
 
   app.use('/api/reports', reportRoutes);
   app.use('/api/v1/reports', reportRoutes);
+
+  app.use('/api/moderation', moderationRoutes);
+  app.use('/api/v1/moderation', moderationRoutes);
+
+  app.use('/api/admin', adminRoutes);
+  app.use('/api/v1/admin', adminRoutes);
 
   // ── 404 and error handling ──
   app.use(notFoundHandler);

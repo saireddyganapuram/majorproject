@@ -112,7 +112,9 @@ class EngagementService:
         extracted_landmarks = landmarks
         face_detected = True
 
-        if frame_base64 and not extracted_landmarks:
+        if not frame_base64 and not extracted_landmarks:
+            face_detected = False
+        elif frame_base64 and not extracted_landmarks:
             img = self.decode_base64_image(frame_base64)
             if img is not None and self.face_mesh is not None:
                 try:

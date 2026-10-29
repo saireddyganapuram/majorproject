@@ -1,5 +1,6 @@
 import { ChatMessage, ModerationEvent, ClassroomSession } from '../models/index.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { config } from '../config/index.js';
 
 // Basic inappropriate words filter list
 const BANNED_WORDS = [
@@ -77,7 +78,31 @@ export const sendChatMessage = async (req, res, next) => {
       throw new AppError('Session not found', 404, 'SESSION_NOT_FOUND');
     }
 
-    const modResult = checkContentModeration(message);
+    // Call AI Moderation Service for ML classification
+    let modResult = { flagged: false, severity: 'none', categories: [], toxicity_score: 0.0, confidence: 0.9 };
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+      const aiResponse = await fetch(`${config.aiServiceUrl}/api/v1/moderation/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: message.trim(),
+          session_id: sessionId,
+          sender_id: req.user._id.toString(),
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (aiResponse.ok) {
+        modResult = await aiResponse.json();
+      } else {
+        modResult = checkContentModeration(message);
+      }
+    } catch {
+      modResult = checkContentModeration(message);
+    }
+
     const status = modResult.flagged ? 'flagged' : 'visible';
 
     const chatMsg = await ChatMessage.create({
@@ -85,25 +110,46 @@ export const sendChatMessage = async (req, res, next) => {
       sender: req.user._id,
       message: message.trim(),
       status,
-      flaggedReason: modResult.flagged ? modResult.reason : null,
+      flaggedReason: modResult.flagged
+        ? `Flagged by NLP Classifier (${modResult.categories?.join(', ') || 'inappropriate'})`
+        : null,
     });
 
     if (modResult.flagged) {
+      const primaryCategory =
+        modResult.categories?.find((c) =>
+          ['toxic', 'insult', 'threat', 'harassment', 'hate', 'profanity'].includes(c)
+        ) || 'other';
+
       await ModerationEvent.create({
         sessionId,
         sender: req.user._id,
-        content: message.trim(),
-        flaggedReason: modResult.reason,
-        severity: modResult.severity,
-        modelName: 'keyword_heuristic_v1',
+        messageId: chatMsg._id,
+        messageSnapshot: message.trim(),
+        category: primaryCategory,
+        severity: modResult.severity || 'medium',
+        modelConfidence: modResult.confidence || 0.85,
+        modelName: 'tfidf_logistic_nlp_v2',
+        reviewStatus: 'pending',
       });
+
+      // Emit real-time notification to instructor room via socket
+      if (req.app?.locals?.io) {
+        req.app.locals.io.to(`session:${sessionId}`).emit('moderation_event_created', {
+          sessionId,
+          senderName: req.user.name,
+          category: primaryCategory,
+          severity: modResult.severity,
+          createdAt: new Date().toISOString(),
+        });
+      }
     }
 
     await chatMsg.populate('sender', 'name email avatar role');
 
     res.status(201).json({
       success: true,
-      message: modResult.flagged ? 'Message flagged for review' : 'Message posted',
+      message: modResult.flagged ? 'Message flagged for instructor review' : 'Message posted',
       data: chatMsg,
     });
   } catch (error) {

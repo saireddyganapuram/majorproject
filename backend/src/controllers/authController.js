@@ -50,6 +50,7 @@ export const register = async (req, res, next) => {
     });
 
     const userResponse = user.toJSON();
+    userResponse.token = accessToken;
 
     res.status(201).json({
       success: true,
@@ -136,6 +137,7 @@ export const login = async (req, res, next) => {
     });
 
     const userResponse = user.toJSON();
+    userResponse.token = accessToken;
 
     res.json({
       success: true,
