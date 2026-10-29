@@ -1,0 +1,19 @@
+# AI Service Dependencies
+# ======================
+
+# Web framework
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+
+# Computer Vision (Phase 3)
+opencv-python-headless==4.11.0.86
+mediapipe==0.10.21
+numpy==2.2.5
+
+# NLP Moderation (Phase 4)
+transformers==4.51.3
+torch==2.7.0
+
+# Utilities
+python-dotenv==1.1.0
+python-multipart==0.0.20
